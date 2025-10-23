@@ -14,22 +14,18 @@
     .grid { display:grid; grid-template-columns:360px 1fr; gap:18px; }
     .card { background:white; padding:14px; border-radius:10px; box-shadow:0 6px 18px rgba(16,24,40,0.06); }
     label { display:block; font-size:13px; margin-top:8px; color:#6b7280; }
-    input[type=text], input[type=date] { width:100%; padding:8px; margin-top:6px; border-radius:6px; border:1px solid #e6e9ef; box-sizing:border-box; }
+    input[type=text], input[type=date], input[type=number] { width:100%; padding:8px; margin-top:6px; border-radius:6px; border:1px solid #e6e9ef; box-sizing:border-box; }
     button { padding:8px 10px; border-radius:8px; border:0; background:#2463eb; color:white; cursor:pointer; }
     .small { font-size:13px; padding:6px 8px; }
     .danger { background:#ef4444; }
     table { width:100%; border-collapse:collapse; margin-top:12px; }
     th, td { padding:8px; text-align:left; border-bottom:1px solid #f1f5f9; font-size:14px; }
-    tr.overdue { background:#fee2e2; } /* fila roja clara para atrasados */
-    tr.clickable { cursor:pointer; }
     #search { width:100%; padding:8px; margin-bottom:8px; border-radius:6px; border:1px solid #e6e9ef; }
-    .muted { color:#6b7280; font-size:13px; }
     .status-available { background:#ecfdf5; color:#065f46; padding:4px 8px; border-radius:6px; font-weight:600; display:inline-block; }
     .status-loaned { background:#fff7ed; color:#92400e; padding:4px 8px; border-radius:6px; font-weight:600; display:inline-block; }
     .info-box { margin-top:12px; padding:10px; background:#f8fafc; border-radius:8px; border:1px solid #e6edf6; }
     .hidden { display:none; }
     .actions button { margin-right:6px; }
-    .top-note { font-size:13px; color:#374151; margin-bottom:8px; }
   </style>
 </head>
 <body>
@@ -53,50 +49,49 @@
 
   <main class="container">
     <div class="grid">
+
+      <!-- Formulario de libros -->
       <div class="card">
         <strong>Agregar / Editar libro</strong>
         <form id="bookForm">
+          <input type="hidden" id="bookId">
+          <label>Clave</label>
+          <input id="code" type="text">
           <label>Título *</label>
           <input id="title" type="text" required>
           <label>Autor</label>
           <input id="author" type="text">
           <label>Categoría *</label>
           <input id="category" type="text" required>
+          <label>Cantidad</label>
+          <input id="cantidad" type="number" min="1" value="1">
           <div style="margin-top:12px">
             <button type="submit">Guardar libro</button>
           </div>
         </form>
-        <hr>
-        <button id="clearBtn" class="danger small">Borrar todo</button>
       </div>
 
+      <!-- Lista de libros -->
       <div class="card">
         <div style="display:flex; align-items:center; justify-content:space-between;">
           <div>
             <strong>Libros</strong>
-            <div class="muted">Busca por título y administra préstamos.</div>
-          </div>
-          <div style="text-align:right;">
-            <div class="top-note">Busca y selecciona un libro para ver o prestar.</div>
+            <div class="muted">Busca por título, autor, categoría o clave.</div>
           </div>
         </div>
-
-        <input id="search" type="text" placeholder="Buscar por título...">
-
+        <input id="search" type="text" placeholder="Buscar...">
         <table id="booksTable">
           <thead>
             <tr>
-              <th>#</th><th>Título</th><th>Autor</th><th>Categoría</th><th>Estado</th><th>Acción</th>
+              <th>#</th><th>Clave</th><th>Título</th><th>Autor</th><th>Categoría</th><th>Estado</th><th>Acción</th>
             </tr>
           </thead>
           <tbody id="booksTbody"></tbody>
         </table>
 
-        <!-- Contenedor del formulario de préstamo y detalles -->
+        <!-- Panel de préstamo -->
         <div id="loanFormContainer" class="info-box hidden">
           <div id="loanHeading"><strong>Prestar libro</strong></div>
-
-          <!-- Formulario para prestar -->
           <form id="loanForm" class="hidden">
             <input type="hidden" id="loanBookId">
             <label>Nombre del alumno *</label>
@@ -113,7 +108,6 @@
             </div>
           </form>
 
-          <!-- Detalles de préstamo (si ya está prestado) -->
           <div id="loanDetails" class="hidden">
             <strong>Detalles del préstamo</strong>
             <div id="loanInfo" style="margin-top:8px"></div>
@@ -123,7 +117,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </div>
   </main>
@@ -131,329 +124,204 @@
 
 <!-- FIREBASE + SISTEMA -->
 <script type="module">
-  // --- Importar Firebase ---
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-  import {
-    getFirestore,
-    collection,
-    addDoc,
-    getDocs,
-    deleteDoc,
-    doc,
-    writeBatch,
-    updateDoc,
-    getDoc
-  } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
 
-  // --- Configuración de tu Firebase ---
-  const firebaseConfig = {
-    apiKey: "AIzaSyDVEtKiYTOvTqqgvI3SK5nWsCo1n9aM4Yw",
-    authDomain: "biblioteca-tele-cuahutemoc.firebaseapp.com",
-    projectId: "biblioteca-tele-cuahutemoc",
-    storageBucket: "biblioteca-tele-cuahutemoc.firebasestorage.app",
-    messagingSenderId: "591855309337",
-    appId: "1:591855309337:web:c0b5453da645cba1f75088"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDVEtKiYTOvTqqgvI3SK5nWsCo1n9aM4Yw",
+  authDomain: "biblioteca-tele-cuahutemoc.firebaseapp.com",
+  projectId: "biblioteca-tele-cuahutemoc",
+  storageBucket: "biblioteca-tele-cuahutemoc.firebasestorage.app",
+  messagingSenderId: "591855309337",
+  appId: "1:591855309337:web:c0b5453da645cba1f75088"
+};
 
-  // Inicializar Firebase
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const booksRef = collection(db, "libros");
-  const loansRef = collection(db, "prestamos");
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const booksRef = collection(db, "libros");
+const loansRef = collection(db, "prestamos");
 
-  // --- LOGIN ---
-  window.login = function () {
-    const pass = document.getElementById("password").value;
-    if (pass === "biblioteca cuahutemoc") {
-      document.getElementById("login-box").style.display = "none";
-      document.getElementById("sistema").style.display = "block";
-      renderBooks();
-    } else {
-      const err = document.getElementById("error");
-      err.style.display = "block";
-      setTimeout(()=> err.style.display = "none", 3000);
-    }
-  };
-
-  // --- GUARDAR LIBRO ---
-  const bookForm = document.getElementById("bookForm");
-  const booksTbody = document.getElementById("booksTbody");
-
-  bookForm.addEventListener("submit", async e => {
-    e.preventDefault();
-    const titulo = document.getElementById("title").value.trim();
-    const autor = document.getElementById("author").value.trim();
-    const categoria = document.getElementById("category").value.trim();
-
-    if (!titulo || !categoria) return alert("Falta título o categoría");
-
-    await addDoc(booksRef, { titulo, autor, categoria, prestado: false, prestamoId: null });
-    bookForm.reset();
+window.login = function () {
+  const pass = document.getElementById("password").value;
+  if (pass === "biblioteca cuahutemoc") {
+    document.getElementById("login-box").style.display = "none";
+    document.getElementById("sistema").style.display = "block";
     renderBooks();
+  } else {
+    const err = document.getElementById("error");
+    err.style.display = "block";
+    setTimeout(()=> err.style.display = "none", 3000);
+  }
+};
+
+const bookForm = document.getElementById("bookForm");
+const booksTbody = document.getElementById("booksTbody");
+bookForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const id = document.getElementById("bookId").value;
+  const clave = document.getElementById("code").value.trim();
+  const titulo = document.getElementById("title").value.trim();
+  const autor = document.getElementById("author").value.trim();
+  const categoria = document.getElementById("category").value.trim();
+  const cantidad = parseInt(document.getElementById("cantidad").value) || 1;
+
+  if (!titulo || !categoria) return alert("Faltan campos obligatorios (Título y Categoría).");
+
+  if (id) {
+    await updateDoc(doc(db, "libros", id), { clave, titulo, autor, categoria });
+  } else {
+    for (let i = 0; i < cantidad; i++) {
+      await addDoc(booksRef, { clave, titulo, autor, categoria, prestado: false, prestamoId: null });
+    }
+  }
+
+  bookForm.reset();
+  document.getElementById("cantidad").value = "1";
+  document.getElementById("bookId").value = "";
+  renderBooks();
+});
+
+const searchInput = document.getElementById("search");
+searchInput.addEventListener("input", () => renderBooks());
+
+async function renderBooks() {
+  const booksSnapshot = await getDocs(booksRef);
+  const loansSnapshot = await getDocs(loansRef);
+  const loansByBook = {};
+  loansSnapshot.forEach(l => {
+    const data = l.data();
+    if (data.bookId) loansByBook[data.bookId] = { id: l.id, ...data };
   });
 
-  // --- BUSCADOR ---
-  const searchInput = document.getElementById("search");
-  searchInput.addEventListener("input", () => renderBooks());
-
-  // --- MOSTRAR LIBROS (con estado y ordenando atrasados arriba) ---
-  async function renderBooks() {
-    // obtener libros y prestamos
-    const booksSnapshot = await getDocs(booksRef);
-    const loansSnapshot = await getDocs(loansRef);
-
-    // map de préstamos por bookId
-    const loansByBook = {};
-    loansSnapshot.forEach(l => {
-      const data = l.data();
-      if (data.bookId) loansByBook[data.bookId] = { id: l.id, ...data };
+  const booksArr = [];
+  booksSnapshot.forEach(bDoc => {
+    const b = bDoc.data();
+    booksArr.push({
+      id: bDoc.id, clave: b.clave || "", titulo: b.titulo || "", autor: b.autor || "",
+      categoria: b.categoria || "", prestado: !!b.prestado, prestamoId: b.prestamoId || null,
+      loan: loansByBook[bDoc.id] || null
     });
+  });
 
-    // construir array de libros con info de préstamo
-    const booksArr = [];
-    booksSnapshot.forEach((bDoc) => {
-      const b = bDoc.data();
-      const book = {
-        id: bDoc.id,
-        titulo: b.titulo || "",
-        autor: b.autor || "",
-        categoria: b.categoria || "",
-        prestado: !!b.prestado,
-        prestamoId: b.prestamoId || null,
-      };
-      // si existe préstamo en map, agregarlo
-      const loan = loansByBook[book.id] || null;
-      book.loan = loan;
-      // calcular si overdue
-      if (loan && loan.fechaDevolucion) {
-        // loan.fechaDevolucion está guardada como 'YYYY-MM-DD' o ISO, manejar ambos
-        const due = new Date(loan.fechaDevolucion);
-        const today = new Date();
-        // ignorar hora para la comparación (poner a 0h)
-        due.setHours(0,0,0,0);
-        today.setHours(0,0,0,0);
-        book.overdue = due < today;
-      } else {
-        book.overdue = false;
-      }
-      booksArr.push(book);
-    });
+  const q = searchInput.value.trim().toLowerCase();
+  const filtered = booksArr.filter(b =>
+    b.titulo.toLowerCase().includes(q) ||
+    b.autor.toLowerCase().includes(q) ||
+    b.categoria.toLowerCase().includes(q) ||
+    b.clave.toLowerCase().includes(q)
+  );
 
-    // filtrar por búsqueda (por título)
-    const q = searchInput.value.trim().toLowerCase();
-    let filtered = booksArr.filter(b => b.titulo.toLowerCase().includes(q));
+  filtered.sort((a,b) => a.categoria.localeCompare(b.categoria) || a.titulo.localeCompare(b.titulo));
 
-    // ordenar: primero overdue (true), luego por título A-Z
-    filtered.sort((a,b) => {
-      if (a.overdue && !b.overdue) return -1;
-      if (!a.overdue && b.overdue) return 1;
-      // else ordenar por título
-      return a.titulo.localeCompare(b.titulo);
-    });
+  booksTbody.innerHTML = "";
+  let i = 1;
+  filtered.forEach(book => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${i++}</td>
+      <td>${escapeHtml(book.clave)}</td>
+      <td>${escapeHtml(book.titulo)}</td>
+      <td>${escapeHtml(book.autor)}</td>
+      <td>${escapeHtml(book.categoria)}</td>
+      <td>${book.prestado ? '<span class="status-loaned">Prestado</span>' : '<span class="status-available">Disponible</span>'}</td>
+      <td class="actions">
+        ${book.prestado
+          ? `<button class="small" onclick="showLoanDetails(event,'${book.id}')">Ver préstamo</button>`
+          : `<button class="small" onclick="showLoanForm(event,'${book.id}','${escapeJs(book.titulo)}')">Prestar</button>
+             <button class="small" onclick="editBook(event,'${book.id}')">Editar</button>
+             <button class="small danger" onclick="deleteBook(event,'${book.id}')">Eliminar</button>`}
+      </td>`;
+    booksTbody.appendChild(tr);
+  });
+}
 
-    // render
-    booksTbody.innerHTML = "";
-    let i = 1;
-    filtered.forEach(book => {
-      const tr = document.createElement("tr");
-      if (book.overdue) tr.classList.add("overdue");
-      tr.classList.add("clickable");
-      tr.innerHTML = `
-        <td>${i++}</td>
-        <td>${escapeHtml(book.titulo)}</td>
-        <td>${escapeHtml(book.autor)}</td>
-        <td>${escapeHtml(book.categoria)}</td>
-        <td>
-          ${book.prestado ? '<span class="status-loaned">Prestado</span>' : '<span class="status-available">Disponible</span>'}
-        </td>
-        <td class="actions">
-          ${book.prestado ? `<button class="small" onclick="showLoanDetails(event,'${book.id}')">Ver préstamo</button>` : `<button class="small" onclick="showLoanForm(event,'${book.id}','${escapeJs(book.titulo)}')">Prestar</button>`}
-        </td>
-      `;
-      // clic en la fila: si prestado mostrar detalles (también el botón lo hace)
-      tr.addEventListener("click", (ev) => {
-        // evitar doble acción si clic en botón (los botones llaman con event)
-        if (ev.target.tagName.toLowerCase() === 'button' || ev.target.tagName.toLowerCase() === 'a') return;
-        if (book.prestado) {
-          showLoanDetails(null, book.id);
-        } else {
-          // si no está prestado ocultar panel
-          hideLoanPanels();
-        }
-      });
+function escapeHtml(text) {
+  return text ? text.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
+}
+function escapeJs(text) {
+  return text ? text.replace(/'/g, "\\'").replace(/"/g,'\\"') : '';
+}
 
-      booksTbody.appendChild(tr);
-    });
-  }
+window.deleteBook = async function(evt, id) {
+  evt.stopPropagation();
+  if (!confirm("¿Seguro que deseas eliminar este libro?")) return;
+  await deleteDoc(doc(db, "libros", id));
+  renderBooks();
+};
 
-  // --- UTIL: escapar texto para HTML (evitar XSS cuando se muestran títulos) ---
-  function escapeHtml(text) {
-    if (!text) return '';
-    return text.replace(/[&<>"']/g, function (m) {
-      return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[m];
-    });
-  }
-  function escapeJs(text) {
-    if (!text) return '';
-    return text.replace(/'/g, "\\'").replace(/"/g,'\\"');
-  }
+window.editBook = async function(evt, id) {
+  evt.stopPropagation();
+  const snap = await getDoc(doc(db, "libros", id));
+  if (!snap.exists()) return alert("Libro no encontrado.");
+  const b = snap.data();
+  document.getElementById("bookId").value = id;
+  document.getElementById("code").value = b.clave || "";
+  document.getElementById("title").value = b.titulo || "";
+  document.getElementById("author").value = b.autor || "";
+  document.getElementById("category").value = b.categoria || "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
-  // --- Mostrar formulario para prestar (dentro del mismo cuadro) ---
-  window.showLoanForm = function (evt, bookId, titulo) {
-    if (evt) evt.stopPropagation();
-    const container = document.getElementById("loanFormContainer");
-    container.classList.remove("hidden");
-    document.getElementById("loanHeading").innerText = `Prestar: ${titulo}`;
-    document.getElementById("loanForm").classList.remove("hidden");
-    document.getElementById("loanDetails").classList.add("hidden");
-    document.getElementById("loanBookId").value = bookId;
-    // set default due date to +7 days
-    const dd = new Date();
-    dd.setDate(dd.getDate() + 7);
-    document.getElementById("loanDueDate").value = dd.toISOString().slice(0,10);
+// PRÉSTAMOS
+document.getElementById("cancelLoan").addEventListener("click", e => {
+  e.preventDefault(); hideLoanPanels();
+});
+function hideLoanPanels(){
+  document.getElementById("loanFormContainer").classList.add("hidden");
+  document.getElementById("loanForm").classList.add("hidden");
+  document.getElementById("loanDetails").classList.add("hidden");
+  document.getElementById("loanForm").reset();
+}
+const loanForm = document.getElementById("loanForm");
+loanForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const bookId = document.getElementById("loanBookId").value;
+  const nombre = document.getElementById("loanName").value.trim();
+  const grado = document.getElementById("loanGrade").value.trim();
+  const grupo = document.getElementById("loanGroup").value.trim();
+  const fecha = document.getElementById("loanDueDate").value;
+  if (!bookId || !nombre || !grado || !grupo || !fecha) return alert("Completa todos los campos del préstamo.");
+  const loanDoc = await addDoc(loansRef, { bookId, nombre, grado, grupo, fechaDevolucion: fecha, creadoEn: new Date().toISOString() });
+  await updateDoc(doc(db, "libros", bookId), { prestado: true, prestamoId: loanDoc.id });
+  loanForm.reset(); hideLoanPanels(); renderBooks();
+});
+window.showLoanForm = function(evt, bookId, titulo) {
+  if (evt) evt.stopPropagation();
+  const c = document.getElementById("loanFormContainer");
+  c.classList.remove("hidden");
+  document.getElementById("loanHeading").innerText = `Prestar: ${titulo}`;
+  document.getElementById("loanForm").classList.remove("hidden");
+  document.getElementById("loanDetails").classList.add("hidden");
+  document.getElementById("loanBookId").value = bookId;
+  const dd = new Date(); dd.setDate(dd.getDate() + 7);
+  document.getElementById("loanDueDate").value = dd.toISOString().slice(0,10);
+};
+window.showLoanDetails = async function(evt, bookId) {
+  if (evt) evt.stopPropagation();
+  const bSnap = await getDoc(doc(db, "libros", bookId));
+  if (!bSnap.exists()) return alert("Libro no encontrado.");
+  const b = bSnap.data();
+  if (!b.prestado || !b.prestamoId) return alert("Este libro no está prestado.");
+  const lSnap = await getDoc(doc(db, "prestamos", b.prestamoId));
+  if (!lSnap.exists()) return alert("No se encontró el préstamo.");
+  const l = lSnap.data();
+  const c = document.getElementById("loanFormContainer");
+  c.classList.remove("hidden");
+  document.getElementById("loanForm").classList.add("hidden");
+  document.getElementById("loanDetails").classList.remove("hidden");
+  document.getElementById("loanInfo").innerHTML = `
+    <div><strong>Libro:</strong> ${escapeHtml(b.titulo)}</div>
+    <div><strong>Alumno:</strong> ${escapeHtml(l.nombre)}</div>
+    <div><strong>Grado:</strong> ${escapeHtml(l.grado)} &nbsp; <strong>Grupo:</strong> ${escapeHtml(l.grupo)}</div>
+    <div><strong>Fecha de devolución:</strong> ${escapeHtml(l.fechaDevolucion)}</div>`;
+  document.getElementById("returnBtn").onclick = async () => {
+    if (!confirm("¿Registrar devolución de este libro?")) return;
+    await deleteDoc(doc(db, "prestamos", b.prestamoId));
+    await updateDoc(doc(db, "libros", bookId), { prestado: false, prestamoId: null });
+    hideLoanPanels(); renderBooks();
   };
-
-  // cancelar préstamo (oculta formulario)
-  document.getElementById("cancelLoan").addEventListener("click", (e) => {
-    e.preventDefault();
-    hideLoanPanels();
-  });
-
-  function hideLoanPanels(){
-    const container = document.getElementById("loanFormContainer");
-    container.classList.add("hidden");
-    document.getElementById("loanForm").classList.add("hidden");
-    document.getElementById("loanDetails").classList.add("hidden");
-    // reset form
-    document.getElementById("loanForm").reset();
-  }
-
-  // --- Guardar préstamo en Firebase y marcar libro como prestado ---
-  const loanForm = document.getElementById("loanForm");
-  loanForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const bookId = document.getElementById("loanBookId").value;
-    const nombre = document.getElementById("loanName").value.trim();
-    const grado = document.getElementById("loanGrade").value.trim();
-    const grupo = document.getElementById("loanGroup").value.trim();
-    const fechaDevolucion = document.getElementById("loanDueDate").value; // YYYY-MM-DD
-
-    if (!bookId || !nombre || !grado || !grupo || !fechaDevolucion) {
-      return alert("Completa todos los campos del préstamo.");
-    }
-
-    // crear doc en 'prestamos'
-    const loanDoc = await addDoc(loansRef, {
-      bookId,
-      nombre,
-      grado,
-      grupo,
-      fechaDevolucion, // guardamos como 'YYYY-MM-DD'
-      creadoEn: new Date().toISOString()
-    });
-
-    // actualizar libro: prestado true y prestamoId
-    const bookDocRef = doc(db, "libros", bookId);
-    await updateDoc(bookDocRef, {
-      prestado: true,
-      prestamoId: loanDoc.id
-    });
-
-    // limpiar y recargar
-    loanForm.reset();
-    hideLoanPanels();
-    renderBooks();
-  });
-
-  // --- Mostrar detalles del préstamo y permitir devolución ---
-  window.showLoanDetails = async function (evt, bookId) {
-    if (evt) evt.stopPropagation();
-    // buscar libro
-    const bookSnap = await getDoc(doc(db, "libros", bookId));
-    if (!bookSnap.exists()) return alert("Libro no encontrado.");
-    const b = bookSnap.data();
-    if (!b.prestado || !b.prestamoId) {
-      return alert("Este libro no está registrado como prestado.");
-    }
-
-    // obtener préstamo
-    const loanSnap = await getDoc(doc(db, "prestamos", b.prestamoId));
-    if (!loanSnap.exists()) {
-      // inconsistencia: libro dice prestado pero no hay préstamo
-      return alert("No se encontró la información del préstamo (inconsistencia).");
-    }
-    const loan = loanSnap.data();
-
-    const container = document.getElementById("loanFormContainer");
-    container.classList.remove("hidden");
-    document.getElementById("loanForm").classList.add("hidden");
-    document.getElementById("loanDetails").classList.remove("hidden");
-
-    // llenar info
-    const info = `
-      <div><strong>Libro:</strong> ${escapeHtml(b.titulo)}</div>
-      <div><strong>Alumno:</strong> ${escapeHtml(loan.nombre)}</div>
-      <div><strong>Grado:</strong> ${escapeHtml(loan.grado)} &nbsp; <strong>Grupo:</strong> ${escapeHtml(loan.grupo)}</div>
-      <div><strong>Fecha de devolución:</strong> ${escapeHtml(loan.fechaDevolucion)}</div>
-    `;
-    document.getElementById("loanInfo").innerHTML = info;
-
-    // ajustar botones
-    const returnBtn = document.getElementById("returnBtn");
-    returnBtn.onclick = async () => {
-      if (!confirm("¿Registrar devolución de este libro?")) return;
-      // eliminar préstamo y actualizar libro
-      try {
-        await deleteDoc(doc(db, "prestamos", b.prestamoId));
-      } catch (err) {
-        console.error("Error eliminando préstamo:", err);
-      }
-      try {
-        await updateDoc(doc(db, "libros", bookId), {
-          prestado: false,
-          prestamoId: null
-        });
-      } catch (err) {
-        console.error("Error actualizando libro:", err);
-      }
-      hideLoanPanels();
-      renderBooks();
-    };
-
-    document.getElementById("closeDetails").onclick = () => {
-      hideLoanPanels();
-    };
-  };
-
-  // --- BORRAR TODOS (mantengo comportamiento) ---
-  document.getElementById("clearBtn").addEventListener("click", async () => {
-    if (!confirm("¿Borrar todos los libros y préstamos?")) return;
-    // borrar prestamos
-    const loansSnapshot = await getDocs(loansRef);
-    const loansBatch = writeBatch(db);
-    loansSnapshot.forEach(d => loansBatch.delete(d.ref));
-    await loansBatch.commit();
-
-    // borrar libros
-    const snapshot = await getDocs(booksRef);
-    const batch = writeBatch(db);
-    snapshot.forEach(d => batch.delete(d.ref));
-    await batch.commit();
-
-    renderBooks();
-  });
-
-  // --- Utilidad: obtener documento ---
-  async function getDocRef(collectionName, id) {
-    return await getDoc(doc(db, collectionName, id));
-  }
-
-  // --- inicializar render cada vez que se abre el sistema ---
-  // ya llamado en login - aquí sólo para debug si ya estamos "logueados"
-  if (document.getElementById("sistema").style.display === "block") {
-    renderBooks();
-  }
-
+  document.getElementById("closeDetails").onclick = () => hideLoanPanels();
+};
 </script>
 
 </body>
